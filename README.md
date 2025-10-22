@@ -1,8 +1,6 @@
 # RemindGo-Pro
 
-sequenceDiagram
-    autonumber
-    participant U as User
+    participant U as User/
     participant A as RemindGo Pro (App)
     participant OS as OS Location Services
     participant AR as Activity Recognition
