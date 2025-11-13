@@ -1,5 +1,3 @@
-sequenceDiagram
-autonumber
 participant U as User
 participant A as App
 participant OS as OS (Location/Perms)
