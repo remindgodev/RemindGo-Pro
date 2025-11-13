@@ -1,3 +1,5 @@
+sequenceDiagram
+autonumber
 participant U as User
 participant A as App
 participant OS as OS (Location/Perms)
@@ -21,6 +23,7 @@ A->>OS: getCurrentLocation (coarse, one-shot)
 OS-->>A: Coarse fix (lat/lng)
 
 A->>A: Compute geohash5 tile + check hysteresis (moved ≥3–5 km or ≥10–15 min or tile changed)
+
 alt No fetch needed (same tile & thresholds not met)
 A->>A: Keep existing geofences (if any)
 else Fetch needed
