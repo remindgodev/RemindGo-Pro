@@ -1,4 +1,5 @@
-
+sequenceDiagram
+  autonumber
   participant U as User
   participant A as App
   participant OS as OS (Location/Perms)
@@ -66,14 +67,4 @@
   A->>G: Unregister transient geofences if needed
   A->>OS: Stop HIGH_ACCURACY updates
   A->>A: Return to Standby (Activity only)
-
-    G-->>A: ENTER boundary geofence
-    A->>N: Notify immediately (compact zone)
-    N-->>U: Delivered
-
-    %% 4) End of drive
-    AR-->>A: STILL / ON_FOOT
-    A->>G: Unregister geofences
-    A->>OS: Stop location updates (if any)
-    A->>A: Back to Standby
 
