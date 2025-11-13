@@ -1,5 +1,4 @@
-
-  autonumber
+autonumber
   participant U as User
   participant A as App
   participant OS as OS (Location/Perms)
@@ -67,4 +66,3 @@
   A->>G: Unregister transient geofences if needed
   A->>OS: Stop HIGH_ACCURACY updates
   A->>A: Return to Standby (Activity only)
-
