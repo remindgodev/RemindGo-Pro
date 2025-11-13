@@ -1,3 +1,4 @@
+```mermaid
 sequenceDiagram
 autonumber
 participant U as User
@@ -25,41 +26,41 @@ OS-->>A: Coarse fix (lat/lng)
 A->>A: Compute geohash5 tile + check hysteresis (moved ≥3–5 km or ≥10–15 min or tile changed)
 
 alt No fetch needed (same tile & thresholds not met)
-A->>A: Keep existing geofences (if any)
+A->>A: Keep existing geofences
 else Fetch needed
 A->>S: GET /geofences/tiles/{tile}?cap=&etag=
 S-->>A: 200 {geofences[], etag} or 304 Not Modified
 A->>A: Update local cache + last tile/etag
 end
 
-A->>A: Determine zone strategy per geofence (Tier A vs Tier B)
+A->>A: Determine zone strategy (Tier A vs Tier B)
 
 alt Tier A (compact zone)
-A->>G: Register circular geofences (≤ OS cap)
+A->>G: Register circular geofences
 else Tier B (large / irregular zone)
 A->>G: Register entry-point geofences and/or one large zone geofence
 end
 
 G-->>A: ENTER (entry-point or large geofence)
-A->>OS: Start HIGH_ACCURACY updates (2–5 min max)
+A->>OS: Start HIGH_ACCURACY updates (2–5 min)
 OS-->>A: Precise fix t1
 OS-->>A: Precise fix t2
 
-A->>GJ: Check movement vs polygon (segment intersection / inside / near-boundary)
+A->>GJ: Polygon checks (intersection / inside / near-boundary)
 GJ-->>A: CROSSING = true/false
 
 alt CROSSING = true
-A->>N: Notify (Pay • Snooze • Mute + zone details)
-N-->>U: Delivered
+A->>N: Notify user
 else CROSSING = false
-A->>A: Stop precise updates, keep geofences armed
+A->>A: Stop precise updates
 end
 
 G-->>A: ENTER Tier A geofence
-A->>N: Notify immediately (compact zone reminder)
-N-->>U: Delivered
+A->>N: Notify immediately
 
 AR-->>A: STILL / ON_FOOT
-A->>G: Unregister transient geofences if needed
-A->>OS: Stop HIGH_ACCURACY updates
-A->>A: Return to Standby (Activity only)
+A->>G: Unregister geofences
+A->>OS: Stop updates
+A->>A: Standby
+```
+
