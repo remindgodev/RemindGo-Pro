@@ -1,4 +1,4 @@
-sequenceDiagram
+
   autonumber
   participant U as User
   participant A as App
