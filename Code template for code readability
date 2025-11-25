@@ -1,0 +1,219 @@
+package com.remindgopro.reminders
+
+import java.time.Instant
+import java.time.ZonedDateTime
+import java.time.DayOfWeek
+
+/**
+ * High-level business logic for deciding:
+ *
+ * - When to send the FIRST reminder
+ * - When to send the SECOND reminder
+ * - How quiet hours affect both
+ *
+ * OS-specific details (Android notifications, WorkManager, etc.)
+ * are hidden behind interfaces at the bottom of this file.
+ *
+ * This should read almost like English.
+ */
+
+// --------- PUBLIC ENTRY POINT (what other code calls) ---------
+
+class ReminderEngine(
+    private val zoneDetector: ZoneDetector,
+    private val zoneRules: ZoneRules,
+    private val deadlineRules: DeadlineRules,
+    private val quietHourPolicy: QuietHourPolicy,
+    private val scheduler: NotificationScheduler
+) {
+
+    /**
+     * Called ONCE when the driving session ends.
+     *
+     * @param events All zone-related events collected during the drive.
+     * @param now The current time.
+     */
+    fun handleDriveEnded(events: List<EntryEvent>, now: ZonedDateTime) {
+        if (events.isEmpty()) return
+
+        val confirmedEntries = events.filter { zoneDetector.isConfirmedInside(it) }
+        if (confirmedEntries.isEmpty()) return
+
+        // For now, we handle the most relevant event (e.g. latest).
+        val event = selectPrimaryEvent(confirmedEntries)
+
+        if (!zoneRules.isChargeable(event, now)) return
+        if (!deadlineRules.isPaymentRequired(event, now)) return
+
+        handleFirstReminder(event, now)
+        handleSecondReminderIfNeeded(event, now)
+    }
+
+    // --------- FIRST REMINDER FLOW ---------
+
+    private fun handleFirstReminder(event: EntryEvent, now: ZonedDateTime) {
+        if (!deadlineRules.isBeforePaymentDeadline(event, now)) return
+        if (event.hasFirstReminderBeenSent) return
+
+        if (quietHourPolicy.isQuietNow(now)) {
+            val deferUntil = quietHourPolicy.nextAllowedTime(now)
+            scheduler.scheduleDeferredFirstReminder(event, deferUntil)
+        } else {
+            scheduler.sendImmediateFirstReminder(event)
+        }
+    }
+
+    // --------- SECOND REMINDER FLOW (DEADLINE-AWARE) ---------
+
+    private fun handleSecondReminderIfNeeded(event: EntryEvent, now: ZonedDateTime) {
+        if (!zoneRules.supportsSecondReminder(event)) return
+        if (!deadlineRules.isBeforeSecondReminderCutoff(event, now)) return
+        if (event.hasSecondReminderBeenSent) return
+
+        val secondReminderTime = deadlineRules.secondReminderTime(event)
+        if (secondReminderTime == null) return
+
+        // If we are already past the planned second reminder time, skip.
+        if (now.isAfter(secondReminderTime)) return
+
+        val scheduledTime = quietHourPolicy.adjustForQuietHours(secondReminderTime)
+        scheduler.scheduleSecondReminder(event, scheduledTime)
+    }
+
+    // --------- EVENT SELECTION STRATEGY ---------
+
+    /**
+     * Decide which event to treat as the "primary" one
+     * if multiple entries occurred in the same drive.
+     *
+     * Current simple rule: use the latest confirmed entry.
+     * This can be refined later (e.g. priority by zone type).
+     */
+    private fun selectPrimaryEvent(events: List<EntryEvent>): EntryEvent {
+        return events.maxByOrNull { it.timestamp }!!
+    }
+}
+
+// --------- DATA MODELS (business-level only) ---------
+
+/**
+ * Represents an entry event into a chargeable zone.
+ * This is an app-internal model, not directly tied to Android classes.
+ */
+data class EntryEvent(
+    val id: String,
+    val zoneId: ZoneId,
+    val timestamp: Instant,
+    val metadata: ZoneMetadata,
+    val hasFirstReminderBeenSent: Boolean,
+    val hasSecondReminderBeenSent: Boolean
+)
+
+/**
+ * Logical identifier for a zone, e.g. "LONDON_ULEZ" or "LONDON_CONGESTION".
+ */
+@JvmInline
+value class ZoneId(val value: String)
+
+/**
+ * Metadata about a zone (mostly derived from your dataset).
+ * These values come from the weekly sync, not hard-coded in logic.
+ */
+data class ZoneMetadata(
+    val displayName: String,
+    val chargeableDays: Set<DayOfWeek>, // e.g. Mon–Sun or Mon–Fri
+    val chargeableHours: TimeRange?,    // e.g. 07:00–22:00, or null for all day
+    val paymentDeadlineSeconds: Long,   // e.g. 24h in seconds
+    val supportsSecondReminder: Boolean,
+    val singleReminderOnly: Boolean
+)
+
+/**
+ * Simple representation of a time-of-day range (local).
+ * Implementation details can be refined later.
+ */
+data class TimeRange(
+    val startHour: Int, // 0–23
+    val endHour: Int    // 0–23, inclusive or exclusive per convention
+)
+
+// --------- INTERFACES (hide implementation details) ---------
+
+/**
+ * Decides whether an entry event is truly "inside" a zone.
+ *
+ * This can hide:
+ * - Tier A vs Tier B logic
+ * - GeoJSON polygon checks
+ * - segment–polygon intersection, etc.
+ */
+interface ZoneDetector {
+    fun isConfirmedInside(event: EntryEvent): Boolean
+}
+
+/**
+ * Contains rules about WHETHER the zone is chargeable
+ * at the given time and what the policy on second reminders is.
+ */
+interface ZoneRules {
+    fun isChargeable(event: EntryEvent, now: ZonedDateTime): Boolean
+    fun supportsSecondReminder(event: EntryEvent): Boolean
+}
+
+/**
+ * Contains rules around deadlines and payment requirement.
+ */
+interface DeadlineRules {
+    /**
+     * Example: there is a charge outstanding and we haven't already paid.
+     */
+    fun isPaymentRequired(event: EntryEvent, now: ZonedDateTime): Boolean
+
+    /**
+     * Example: now < (entryTime + paymentDeadline).
+     */
+    fun isBeforePaymentDeadline(event: EntryEvent, now: ZonedDateTime): Boolean
+
+    /**
+     * Example: we want to send the second reminder
+     * close to the deadline but before it expires.
+     */
+    fun isBeforeSecondReminderCutoff(event: EntryEvent, now: ZonedDateTime): Boolean
+
+    /**
+     * When should the second reminder ideally fire?
+     * (e.g. "30 minutes before deadline", adjusted per metadata).
+     */
+    fun secondReminderTime(event: EntryEvent): ZonedDateTime?
+}
+
+/**
+ * Encapsulates quiet-hours logic (e.g. 23:00–07:00).
+ * Keeps all "when is it okay to notify?" reasoning in one place.
+ */
+interface QuietHourPolicy {
+    fun isQuietNow(now: ZonedDateTime): Boolean
+
+    /**
+     * If it's currently quiet hours, when is the next allowed time?
+     */
+    fun nextAllowedTime(now: ZonedDateTime): ZonedDateTime
+
+    /**
+     * Adjust a planned reminder time so it does not fall within quiet hours.
+     * For example, move to 07:00 next day if it would be 02:00.
+     */
+    fun adjustForQuietHours(plannedTime: ZonedDateTime): ZonedDateTime
+}
+
+/**
+ * Hides Android-specific notification & scheduling details.
+ * This will likely wrap NotificationManager + WorkManager/AlarmManager.
+ */
+interface NotificationScheduler {
+    fun sendImmediateFirstReminder(event: EntryEvent)
+
+    fun scheduleDeferredFirstReminder(event: EntryEvent, at: ZonedDateTime)
+
+    fun scheduleSecondReminder(event: EntryEvent, at: ZonedDateTime)
+}
