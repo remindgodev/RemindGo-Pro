@@ -11,15 +11,15 @@ Status legend:
 
 **Goal:** Clean Android project set up with basic structure + documentation so we always know where things live.
 
-- [ ] Create Android project `RemindGoPro` (Kotlin, minimum SDK as agreed).
-- [ ] Set up base package structure:
+- [x] Create Android project `RemindGoPro` (Kotlin, minimum SDK as agreed).
+- [x] Set up base package structure:
   - `ui/` (activities/fragments/screens)
   - `core/` (common utils, config)
   - `data/` (datasets, storage)
   - `domain/` (business logic, decision engines)
-- [ ] Add `docs/PROJECT_OVERVIEW.md` (problem, solution, principles).
-- [ ] Add `docs/ROADMAP.md` (this file).
-- [ ] Add `docs/DEVLOG.md` and make first entry.
+- [x] Add `docs/PROJECT_OVERVIEW.md` (problem, solution, principles).
+- [x] Add `docs/ROADMAP.md` (this file).
+- [x] Add `docs/DEVLOG.md` and make first entry.
 
 **Done when:** App builds & runs with a simple “Hello RemindGo Pro” screen and docs folder exists.
 
