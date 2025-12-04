@@ -29,15 +29,15 @@ Status legend:
 
 **Goal:** Single, clear flow to request all needed permissions without being annoying or confusing.
 
-- [ ] Design a “Welcome / Setup” screen that explains:
+- [x] Design a “Welcome / Setup” screen that explains:
   - What the app does (high level).
   - Why it needs Location, Activity Recognition, Notifications, Battery optimisation ignore (if needed later).
-- [ ] Implement stepwise permission requests:
-  - [ ] Activity Recognition
-  - [ ] Location (foreground + background as required)
-  - [ ] Notifications (Android 13+)
-- [ ] Handle “deny” and “don’t ask again” gracefully with explanation + retry path.
-- [ ] Persist a simple onboarding-completed flag.
+- [x] Implement stepwise permission requests:
+  - [x] Activity Recognition
+  - [x] Location (foreground + background as required)
+  - [x] Notifications (Android 13+)
+- [x] Handle “deny” and “don’t ask again” gracefully with explanation + retry path.
+- [x] Persist a simple onboarding-completed flag.
 
 **Done when:** New user opens app → goes through setup → permissions granted or clearly declined, no crashes.
 
